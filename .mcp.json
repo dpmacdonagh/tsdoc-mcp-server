@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "typedoc-server": {
+      "command": "node",
+      "args": ["./dist/index.js", "--doc-path", "./docs/typedoc.json"],
+      "env": {}
+    }
+  }
+}

@@ -1,0 +1,42 @@
+# Source files
+src/
+*.ts
+!dist/**/*.d.ts
+
+# Config files
+tsconfig.json
+typedoc.json
+.eslintrc.json
+vitest.config.ts
+.mcp.json
+
+# Development files
+docs/
+test-docs/
+*.log
+.DS_Store
+.env
+.env.local
+coverage/
+.nyc_output/
+
+# Git files
+.git/
+.gitignore
+
+# Editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*.iml
+
+# Build artifacts
+*.tsbuildinfo
+
+# Development dependencies
+node_modules/
+
+# Other
+CLAUDE.md
+*.map

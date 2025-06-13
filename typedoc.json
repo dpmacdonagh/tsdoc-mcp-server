@@ -1,0 +1,41 @@
+{
+  "$schema": "https://typedoc.org/schema.json",
+  "name": "TypeDoc MCP Server",
+  "entryPoints": ["./src"],
+  "entryPointStrategy": "expand",
+  "out": "./docs",
+  "json": "./docs/typedoc.json",
+  "excludePrivate": false,
+  "excludeInternal": false,
+  "includeVersion": true,
+  "categorizeByGroup": true,
+  "categoryOrder": ["Types", "Parser", "Tools", "Resources", "*"],
+  "plugin": [],
+  "readme": "./README.md",
+  "theme": "default",
+  "lightHighlightTheme": "github-light",
+  "darkHighlightTheme": "github-dark",
+  "navigationLinks": {
+    "GitHub": "https://github.com/yourusername/typedoc-mcp-server",
+    "NPM": "https://www.npmjs.com/package/typedoc-mcp-server"
+  },
+  "sidebarLinks": {
+    "MCP Documentation": "https://modelcontextprotocol.io",
+    "TypeDoc": "https://typedoc.org"
+  },
+  "sort": ["source-order"],
+  "visibilityFilters": {
+    "protected": true,
+    "private": false,
+    "inherited": true,
+    "external": false
+  },
+  "commentStyle": "all",
+  "searchInComments": true,
+  "skipErrorChecking": false,
+  "validation": {
+    "notExported": true,
+    "invalidLink": true,
+    "notDocumented": false
+  }
+}
