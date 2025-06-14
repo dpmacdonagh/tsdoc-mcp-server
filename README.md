@@ -88,7 +88,36 @@ npm run build
 
 ## Generating TypeDoc Documentation
 
-Before using this server, you need to generate TypeDoc documentation for your TypeScript project:
+### Automated Setup (Recommended)
+
+The TypeDoc MCP Server can help set up TypeDoc automatically through AI assistants. Simply start the server with your project path:
+
+```json
+{
+  "mcpServers": {
+    "typedoc": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "tsdoc-mcp-server",
+        "--project-path",
+        "/path/to/your/typescript/project"
+      ]
+    }
+  }
+}
+```
+
+Then ask your AI assistant to:
+1. Check the TypeDoc setup status
+2. Generate a TypeDoc configuration if needed
+3. Run TypeDoc to generate documentation
+
+The AI will use the setup tools to configure everything automatically!
+
+### Manual Setup
+
+If you prefer to set up TypeDoc manually:
 
 1. Install TypeDoc in your project:
 ```bash
@@ -114,11 +143,54 @@ npx typedoc
 
 This will create both HTML documentation and a `typedoc.json` file that the MCP server uses.
 
-## Usage
+## Usage with AI Assistants
 
-Once configured, the TypeDoc MCP Server provides the following tools to AI assistants:
+Once configured, the TypeDoc MCP Server enables powerful documentation exploration through AI assistants. Here are example prompts you can use:
 
-### findSymbol
+### Example Prompts for Exploring Documentation
+
+**Getting Started:**
+- "Show me an overview of this TypeScript project"
+- "What are the main classes in this codebase?"
+- "Find all interfaces in the project"
+
+**Searching for Symbols:**
+- "Find the UserService class"
+- "Show me all classes that contain 'Controller'"
+- "Find all functions that start with 'handle'"
+
+**Understanding Code:**
+- "Explain the AuthenticationManager class and its methods"
+- "Show me the documentation for the login method"
+- "What parameters does the createUser function accept?"
+
+**Exploring Class Members:**
+- "List all methods in the DatabaseConnection class"
+- "Show me only the public properties of the User interface"
+- "What methods does the Repository class inherit?"
+
+**Finding Special Code:**
+- "Find all deprecated methods in the codebase"
+- "Show me all beta features (marked with @beta)"
+- "Find all code examples in the documentation"
+
+### Example Prompts for Setting Up Documentation
+
+If your project doesn't have TypeDoc configured yet:
+
+**Initial Setup:**
+- "Check if TypeDoc is set up in my project at /path/to/project"
+- "Help me set up TypeDoc for my TypeScript project"
+- "Generate TypeDoc configuration for my project"
+
+**Generating Documentation:**
+- "Generate documentation for my TypeScript project"
+- "Install TypeDoc and create documentation"
+- "My project has JSDoc comments but no generated docs - help me create them"
+
+### Documentation Tools
+
+#### findSymbol
 Search for symbols by name with optional kind filtering.
 
 ```typescript
@@ -129,7 +201,7 @@ findSymbol({ name: "MyClass" })
 findSymbol({ name: "Service", kind: "class", exact: false })
 ```
 
-### getDocumentation
+#### getDocumentation
 Get complete documentation for a symbol by ID or path.
 
 ```typescript
@@ -140,7 +212,7 @@ getDocumentation({ symbolId: 123 })
 getDocumentation({ symbolPath: "MyNamespace.MyClass.myMethod" })
 ```
 
-### getMembers
+#### getMembers
 List all members of a class or interface.
 
 ```typescript
@@ -155,7 +227,7 @@ getMembers({
 })
 ```
 
-### searchByTag
+#### searchByTag
 Find symbols by their JSDoc tags.
 
 ```typescript
@@ -164,6 +236,50 @@ searchByTag({ tag: "deprecated" })
 
 // Find symbols with specific tag values
 searchByTag({ tag: "since", value: "2.0.0" })
+```
+
+### Setup Tools
+
+The server includes powerful setup tools that AI assistants can use to help configure TypeDoc for your project:
+
+#### checkTypeDocSetup
+Check if TypeDoc is properly installed and configured in a TypeScript project.
+
+```typescript
+checkTypeDocSetup({ projectPath: "/path/to/project" })
+
+// Returns status including:
+// - TypeDoc installation status
+// - Configuration file presence
+// - Generated documentation existence
+// - Detected source directories
+// - Actionable recommendations
+```
+
+#### generateTypeDocConfig
+Generate a TypeDoc configuration file for a TypeScript project.
+
+```typescript
+generateTypeDocConfig({ 
+  projectPath: "/path/to/project",
+  entryPoints: ["./src"],  // Optional, auto-detected if not provided
+  outputPath: "./docs"     // Optional, defaults to "./docs"
+})
+
+// Creates typedoc.json with optimal settings
+```
+
+#### runTypeDocGeneration
+Run TypeDoc to generate documentation for a TypeScript project.
+
+```typescript
+runTypeDocGeneration({ 
+  projectPath: "/path/to/project",
+  install: true,  // Install TypeDoc if not present
+  configPath: "./typedoc.json"  // Optional
+})
+
+// Installs TypeDoc if needed and generates documentation
 ```
 
 ### Resources
@@ -208,11 +324,20 @@ npm run docs
 
 The server accepts the following command-line arguments:
 
-- `--doc-path` (required): Path to the TypeDoc JSON file
+- `--doc-path`: Path to the TypeDoc JSON file (for existing documentation)
+- `--project-path`: Path to TypeScript project directory (for setup tools)
+- `--name`: Custom server name (optional)
 
-Example:
+Examples:
 ```bash
+# Use existing documentation
 tsdoc-mcp-server --doc-path /path/to/typedoc.json
+
+# Point to a project (enables setup tools)
+tsdoc-mcp-server --project-path /path/to/project
+
+# Start with no arguments (use setup tools via AI)
+tsdoc-mcp-server
 ```
 
 ## Contributing

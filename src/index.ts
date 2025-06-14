@@ -17,6 +17,8 @@
  * @see {@link https://typedoc.org | TypeDoc}
  */
 
+import { promises as fs } from 'fs';
+import path from 'path';
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import {
@@ -33,6 +35,9 @@ import {
   getMembers,
   searchByTag,
 } from './tools/index.js';
+import { checkTypeDocSetupTool } from './tools/check-setup.js';
+import { generateTypeDocConfigTool } from './tools/generate-config.js';
+import { runTypeDocGenerationTool } from './tools/run-generation.js';
 
 /**
  * Configuration options for the TypeDoc MCP server
@@ -41,7 +46,9 @@ import {
  */
 interface ServerConfig {
   /** Path to the TypeDoc JSON output file */
-  docPath: string;
+  docPath?: string;
+  /** Path to the TypeScript project (alternative to docPath) */
+  projectPath?: string;
   /** Optional custom name for the server */
   serverName?: string;
 }
@@ -83,7 +90,8 @@ class TypeDocMCPServer {
    */
   constructor(config: ServerConfig) {
     this.config = config;
-    this.parser = new TypeDocParser(config.docPath);
+    // Parser will be initialized in start() after we determine the doc path
+    this.parser = null as any;
     
     this.server = new Server(
       {
@@ -183,6 +191,51 @@ class TypeDocMCPServer {
             required: ['tag'],
           },
         },
+        {
+          name: 'checkTypeDocSetup',
+          description: 'Check if TypeDoc is properly installed and configured in a TypeScript project',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              projectPath: { type: 'string', description: 'Path to the TypeScript project directory' },
+            },
+            required: ['projectPath'],
+          },
+        },
+        {
+          name: 'generateTypeDocConfig',
+          description: 'Generate a TypeDoc configuration file for a TypeScript project',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              projectPath: { type: 'string', description: 'Path to the TypeScript project directory' },
+              entryPoints: { 
+                type: 'array', 
+                items: { type: 'string' },
+                description: 'Entry points for documentation (e.g., ["./src"]). Auto-detected if not provided.' 
+              },
+              outputPath: { type: 'string', description: 'Output directory for documentation (default: "./docs")' },
+            },
+            required: ['projectPath'],
+          },
+        },
+        {
+          name: 'runTypeDocGeneration',
+          description: 'Run TypeDoc to generate documentation for a TypeScript project',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              projectPath: { type: 'string', description: 'Path to the TypeScript project directory' },
+              configPath: { type: 'string', description: 'Path to typedoc.json config file (default: "./typedoc.json")' },
+              install: { 
+                type: 'boolean', 
+                default: false,
+                description: 'Install TypeDoc if not present' 
+              },
+            },
+            required: ['projectPath'],
+          },
+        },
       ],
     }));
 
@@ -191,6 +244,22 @@ class TypeDocMCPServer {
       const { name, arguments: args } = request.params;
 
       try {
+        // Check if tool requires parser
+        const parserRequiredTools = ['findSymbol', 'getDocumentation', 'getMembers', 'searchByTag'];
+        if (parserRequiredTools.includes(name)) {
+          const loaded = await this.ensureParserLoaded();
+          if (!loaded) {
+            return {
+              content: [
+                {
+                  type: 'text',
+                  text: 'Error: Documentation not available. Use --doc-path to specify a TypeDoc JSON file, or use the setup tools to generate documentation.',
+                },
+              ],
+            };
+          }
+        }
+
         switch (name) {
           case 'findSymbol': {
             const result = await findSymbol(this.parser, args as any);
@@ -240,6 +309,18 @@ class TypeDocMCPServer {
             };
           }
 
+          case 'checkTypeDocSetup': {
+            return await checkTypeDocSetupTool(args as any);
+          }
+
+          case 'generateTypeDocConfig': {
+            return await generateTypeDocConfigTool(args as any);
+          }
+
+          case 'runTypeDocGeneration': {
+            return await runTypeDocGenerationTool(args as any);
+          }
+
           default:
             throw new Error(`Unknown tool: ${name}`);
         }
@@ -272,6 +353,19 @@ class TypeDocMCPServer {
       const { uri } = request.params;
 
       if (uri === 'typedoc://overview') {
+        const loaded = await this.ensureParserLoaded();
+        if (!loaded) {
+          return {
+            contents: [
+              {
+                uri: 'typedoc://overview',
+                mimeType: 'text/plain',
+                text: 'Error: Documentation not available. Use setup tools to generate documentation first.',
+              },
+            ],
+          };
+        }
+        
         const overview = await getProjectOverview(this.parser);
         return {
           contents: [
@@ -289,26 +383,87 @@ class TypeDocMCPServer {
   }
 
   /**
+   * Ensures the parser is initialized and documentation is loaded
+   * 
+   * @internal
+   */
+  private async ensureParserLoaded(): Promise<boolean> {
+    // If parser not initialized, try to find docs
+    if (!this.parser) {
+      // If we have a project path, check for generated docs
+      if (this.config.projectPath) {
+        const possiblePaths = [
+          path.join(this.config.projectPath, 'docs', 'typedoc.json'),
+          path.join(this.config.projectPath, 'documentation', 'typedoc.json'),
+          path.join(this.config.projectPath, 'typedoc.json'),
+        ];
+        
+        for (const docPath of possiblePaths) {
+          try {
+            await fs.access(docPath);
+            console.error(`Found documentation at ${docPath}`);
+            this.parser = new TypeDocParser(docPath);
+            this.config.docPath = docPath; // Update config
+            break;
+          } catch {
+            // Continue checking
+          }
+        }
+      }
+      
+      if (!this.parser) {
+        return false;
+      }
+    }
+
+    // Check if already parsed by looking at the stats
+    const stats = this.parser.getStats();
+    if (stats.total > 0) {
+      // Already parsed
+      return true;
+    }
+    
+    // Not parsed yet, parse now
+    try {
+      console.error(`Loading TypeDoc documentation from ${this.config.docPath}...`);
+      await this.parser.parse();
+      console.error('Documentation loaded successfully!');
+      return true;
+    } catch (error) {
+      console.error(`Failed to load documentation: ${error}`);
+      return false;
+    }
+  }
+
+  /**
    * Starts the MCP server
    * 
    * @remarks
-   * This method:
-   * 1. Loads and parses the TypeDoc JSON file
-   * 2. Initializes the stdio transport
-   * 3. Connects the server to the transport
-   * 
-   * @throws Error if the documentation cannot be loaded or parsed
+   * This method only starts the server transport.
+   * Documentation loading happens on-demand through tool calls.
    */
   async start() {
-    // Parse TypeDoc JSON
-    console.error(`Loading TypeDoc documentation from ${this.config.docPath}...`);
-    await this.parser.parse();
-    console.error('Documentation loaded successfully!');
+    // Initialize parser if doc-path was provided
+    if (this.config.docPath) {
+      this.parser = new TypeDocParser(this.config.docPath);
+      // Note: We do NOT parse the file here - that happens on first tool use
+    }
+
+    // Store project path for setup tools
+    if (this.config.projectPath) {
+      // Project path is available for setup tools to use
+      console.error(`Project path configured: ${this.config.projectPath}`);
+    }
 
     // Start server
     const transport = new StdioServerTransport();
     await this.server.connect(transport);
     console.error('TypeDoc MCP Server started');
+    
+    if (!this.config.docPath && !this.config.projectPath) {
+      console.error('No --doc-path or --project-path specified.');
+      console.error('Use setup tools to configure TypeDoc for a project.');
+    }
   }
 }
 
@@ -320,8 +475,9 @@ class TypeDocMCPServer {
  * 
  * @internal
  */
-function parseArgs(args: string[]): { docPath?: string; serverName?: string; help: boolean } {
+function parseArgs(args: string[]): ServerConfig & { help: boolean } {
   let docPath: string | undefined;
+  let projectPath: string | undefined;
   let serverName: string | undefined;
   let help = false;
 
@@ -330,6 +486,10 @@ function parseArgs(args: string[]): { docPath?: string; serverName?: string; hel
       case '--doc-path':
       case '-d':
         docPath = args[++i];
+        break;
+      case '--project-path':
+      case '-p':
+        projectPath = args[++i];
         break;
       case '--name':
       case '-n':
@@ -342,7 +502,7 @@ function parseArgs(args: string[]): { docPath?: string; serverName?: string; hel
     }
   }
 
-  return { docPath, serverName, help };
+  return { docPath, projectPath, serverName, help };
 }
 
 /**
@@ -355,15 +515,23 @@ function showHelp(): void {
 TypeDoc MCP Server
 
 Usage:
-  typedoc-mcp-server --doc-path <path> [options]
+  typedoc-mcp-server [options]
 
 Options:
-  --doc-path, -d <path>    Path to TypeDoc JSON output (required)
-  --name, -n <name>        Server name (optional)
-  --help, -h               Show this help message
+  --doc-path, -d <path>      Path to TypeDoc JSON output
+  --project-path, -p <path>  Path to TypeScript project (alternative to --doc-path)
+  --name, -n <name>          Server name (optional)
+  --help, -h                 Show this help message
 
-Example:
+Examples:
+  # Use existing TypeDoc JSON
   typedoc-mcp-server --doc-path ./docs/typedoc.json
+
+  # Point to a project (setup tools will be available)
+  typedoc-mcp-server --project-path /path/to/project
+
+  # Start without any path (use setup tools via AI)
+  typedoc-mcp-server
   `);
 }
 
@@ -380,23 +548,15 @@ Example:
  * @internal
  */
 async function main() {
-  const { docPath, serverName, help } = parseArgs(process.argv.slice(2));
+  const config = parseArgs(process.argv.slice(2));
 
-  if (help) {
+  if (config.help) {
     showHelp();
     process.exit(0);
   }
 
-  if (!docPath) {
-    console.error('Error: --doc-path is required');
-    console.error('Run with --help for usage information');
-    process.exit(1);
-  }
-
-  const config: ServerConfig = {
-    docPath,
-    serverName,
-  };
+  // No required arguments anymore - server can start without doc-path
+  // and use setup tools to configure
 
   try {
     const server = new TypeDocMCPServer(config);

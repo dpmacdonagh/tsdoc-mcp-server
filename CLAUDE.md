@@ -62,35 +62,33 @@ node dist/index.js --doc-path ./docs/typedoc.json
 
 ## Current Development Status
 
-### What We're Currently Doing
+### Latest Updates (2025-01-13)
 
-We're debugging the MCP server implementation after successfully fixing the TypeDoc JSON generation issue. The server was initially only generating documentation for the root module, which we resolved by:
+The TypeDoc MCP Server is now fully functional with automated setup capabilities:
 
-1. Changing TypeDoc configuration to use `"entryPointStrategy": "expand"`
-2. Pointing entry points to `"./src"` directory instead of `"./src/index.ts"`
-3. Removing unnecessary exports (we don't need to export everything for documentation)
+1. **Fixed Overview Resource** - The `readme` field is now correctly handled as an array of `CommentDisplayPart` objects
+2. **Added Setup Tools** - Three new tools for automated TypeDoc configuration:
+   - `checkTypeDocSetup` - Detects TypeDoc installation and configuration
+   - `generateTypeDocConfig` - Creates optimal typedoc.json files
+   - `runTypeDocGeneration` - Installs TypeDoc and generates documentation
+3. **Lazy Loading** - Documentation loads on-demand, not at startup
+4. **Auto-Detection** - When using `--project-path`, the server automatically finds generated docs
 
-Now the tools are working correctly and can find symbols, but we're debugging a runtime error in the overview resource.
-
-### Active Debugging Issue
-
-The `typedoc://overview` resource has a runtime error:
-```
-MCP error -32603: info.readme.substring is not a function
-```
-
-This occurs in `src/resources/overview.ts` line 75. The `readme` field from TypeDoc JSON might not be a string in all cases.
-
-**Next debugging steps:**
-1. Check the actual type of `info.readme` in the TypeDoc JSON
-2. Add type checking before calling `substring()`
-3. Handle cases where readme might be undefined, null, or not a string
-
-### Working Features
+### All Features Working
 - ✅ findSymbol tool - searches symbols by name with optional kind filtering
 - ✅ getDocumentation tool - retrieves full documentation for a symbol
-- ✅ getMembers tool - lists class/interface members
+- ✅ getMembers tool - lists class/interface members with inheritance
 - ✅ searchByTag tool - finds symbols by JSDoc tags
+- ✅ checkTypeDocSetup tool - checks TypeDoc installation status
+- ✅ generateTypeDocConfig tool - creates TypeDoc configuration
+- ✅ runTypeDocGeneration tool - runs TypeDoc generation
+- ✅ Overview resource - provides project statistics and information
+
+### Key Implementation Details
+
+1. **Zero Automatic Actions**: The server never does anything automatically on startup - all actions are initiated through tool calls
+2. **Smart Path Detection**: When using `--project-path`, the server looks for docs in common locations (./docs/typedoc.json, etc.)
+3. **Immediate Availability**: After generating docs with `runTypeDocGeneration`, they're immediately available without restart
 
 ### Testing the MCP Server
 
